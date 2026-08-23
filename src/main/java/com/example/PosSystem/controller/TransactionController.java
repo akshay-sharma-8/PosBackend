@@ -28,10 +28,6 @@ public class TransactionController {
     @PostMapping
     @Transactional
     public ResponseEntity<?> saveTransaction(@RequestBody Transaction transaction) {
-        if (transaction.getFinalAmount() == null || transaction.getFinalAmount().signum() < 0) {
-            return ResponseEntity.badRequest().body("finalAmount must be zero or greater.");
-        }
-
         BigDecimal totalWholesale = BigDecimal.ZERO;
         boolean parsedAsJson = false;
 
@@ -77,7 +73,7 @@ public class TransactionController {
                     totalWholesale = totalWholesale.add(wholesale.multiply(new BigDecimal(quantity)));
                 }
             }
-        } catch (JsonProcessingException ignored) {
+        } catch (JsonProcessingException | IllegalArgumentException ignored) {
             // products field is not JSON — will fall through to plain string logic below
         }
 

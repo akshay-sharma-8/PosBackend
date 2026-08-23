@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -18,6 +19,6 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     void deleteByOwnerUsername(String ownerUsername);
 
     // Calculates profit ONLY for the requested user
-    @Query("SELECT SUM(t.finalAmount - t.totalWholesaleCost) FROM Transaction t WHERE t.transactionTimestamp >= :startDate AND t.ownerUsername = :username")
-    Double calculateProfitSince(@Param("startDate") LocalDateTime startDate, @Param("username") String username);
+    @Query("SELECT SUM(COALESCE(t.finalAmount, 0) - COALESCE(t.totalWholesaleCost, 0)) FROM Transaction t WHERE t.transactionTimestamp >= :startDate AND t.ownerUsername = :username")
+    BigDecimal calculateProfitSince(@Param("startDate") LocalDateTime startDate, @Param("username") String username);
 }

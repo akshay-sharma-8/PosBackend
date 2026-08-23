@@ -2,12 +2,15 @@ package com.example.PosSystem.controller;
 
 import com.example.PosSystem.Model.*;
 import com.example.PosSystem.repository.*;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.http.HttpStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -25,6 +28,10 @@ public class TransactionController {
     @PostMapping
     @Transactional
     public ResponseEntity<?> saveTransaction(@RequestBody Transaction transaction) {
+        if (transaction.getFinalAmount() == null || transaction.getFinalAmount().signum() < 0) {
+            return ResponseEntity.badRequest().body("finalAmount must be zero or greater.");
+        }
+
         BigDecimal totalWholesale = BigDecimal.ZERO;
         boolean parsedAsJson = false;
 
@@ -53,10 +60,10 @@ public class TransactionController {
 
                     // Check stock
                     if (product.getQuantity() < quantity) {
-                        return ResponseEntity.badRequest()
-                                .body("Insufficient stock for: " + name
-                                        + " (available: " + product.getQuantity()
-                                        + ", requested: " + quantity + ")");
+                        throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                            "Insufficient stock for: " + name
+                                + " (available: " + product.getQuantity()
+                                + ", requested: " + quantity + ")");
                     }
 
                     // Deduct stock
@@ -70,7 +77,7 @@ public class TransactionController {
                     totalWholesale = totalWholesale.add(wholesale.multiply(new BigDecimal(quantity)));
                 }
             }
-        } catch (Exception ignored) {
+        } catch (JsonProcessingException ignored) {
             // products field is not JSON — will fall through to plain string logic below
         }
 
@@ -82,8 +89,8 @@ public class TransactionController {
                 if (!found.isEmpty()) {
                     Product product = found.get(0);
                     if (product.getQuantity() < 1) {
-                        return ResponseEntity.badRequest()
-                                .body("Insufficient stock for: " + productName);
+                        throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                            "Insufficient stock for: " + productName);
                     }
                     product.setQuantity(product.getQuantity() - 1);
                     productRepository.save(product);
@@ -124,26 +131,26 @@ public class TransactionController {
 
     // PROFIT endpoints
     @GetMapping("/profit/day/{username}")
-    public Double getDailyProfit(@PathVariable String username) {
-        Double profit = transactionRepository.calculateProfitSince(LocalDate.now().atStartOfDay(), username);
-        return profit != null ? profit : 0.0;
+    public BigDecimal getDailyProfit(@PathVariable String username) {
+        BigDecimal profit = transactionRepository.calculateProfitSince(LocalDate.now().atStartOfDay(), username);
+        return profit != null ? profit : BigDecimal.ZERO;
     }
 
     @GetMapping("/profit/week/{username}")
-    public Double getWeeklyProfit(@PathVariable String username) {
-        Double profit = transactionRepository.calculateProfitSince(LocalDateTime.now().minusDays(7), username);
-        return profit != null ? profit : 0.0;
+    public BigDecimal getWeeklyProfit(@PathVariable String username) {
+        BigDecimal profit = transactionRepository.calculateProfitSince(LocalDateTime.now().minusDays(7), username);
+        return profit != null ? profit : BigDecimal.ZERO;
     }
 
     @GetMapping("/profit/month/{username}")
-    public Double getMonthlyProfit(@PathVariable String username) {
-        Double profit = transactionRepository.calculateProfitSince(LocalDateTime.now().minusMonths(1), username);
-        return profit != null ? profit : 0.0;
+    public BigDecimal getMonthlyProfit(@PathVariable String username) {
+        BigDecimal profit = transactionRepository.calculateProfitSince(LocalDateTime.now().minusMonths(1), username);
+        return profit != null ? profit : BigDecimal.ZERO;
     }
 
     @GetMapping("/profit/year/{username}")
-    public Double getYearlyProfit(@PathVariable String username) {
-        Double profit = transactionRepository.calculateProfitSince(LocalDateTime.now().minusYears(1), username);
-        return profit != null ? profit : 0.0;
+    public BigDecimal getYearlyProfit(@PathVariable String username) {
+        BigDecimal profit = transactionRepository.calculateProfitSince(LocalDateTime.now().minusYears(1), username);
+        return profit != null ? profit : BigDecimal.ZERO;
     }
 }

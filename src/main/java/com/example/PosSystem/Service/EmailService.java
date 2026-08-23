@@ -13,7 +13,7 @@ import java.util.List;
 public class EmailService {
 
     // Safely reads the key from Railway
-    @Value("${BREVO_API_KEY}")
+    @Value("${BREVO_API_KEY:}")
     private String apiKey;
 
     // Ensure this matches your Brevo login email

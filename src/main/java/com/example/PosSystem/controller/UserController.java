@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -39,7 +40,6 @@ public class UserController {
         String password = credentials.get("password");
         Optional<User> userOptional = userRepository.findByUsername(username);
         Map<String, String> response = new HashMap<>();
-
         if (userOptional.isPresent() && userOptional.get().getPassword().equals(password)) {
             response.put("message", "Login successful");
             response.put("username", username);
@@ -78,6 +78,7 @@ public class UserController {
                 response.put("message", "No email registered to this account.");
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
             }
+
             String otp = String.format("%06d", new Random().nextInt(999999));
             user.setResetOtp(otp);
             userRepository.save(user);
@@ -87,7 +88,9 @@ public class UserController {
                 response.put("message", "OTP sent to your registered email.");
                 return ResponseEntity.ok(response);
             } catch (Exception e) {
-                response.put("message", "Failed to send email. Ensure server config is valid.");
+                System.err.println("OTP Email sending failed: " + e.getMessage());
+                e.printStackTrace();
+                response.put("message", "Failed to send email: " + e.getMessage());
                 return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
             }
         } else {
@@ -101,7 +104,6 @@ public class UserController {
         String username = request.get("username");
         String otp = request.get("otp");
         String newPassword = request.get("newPassword");
-
         Optional<User> userOptional = userRepository.findByUsername(username);
         Map<String, String> response = new HashMap<>();
 

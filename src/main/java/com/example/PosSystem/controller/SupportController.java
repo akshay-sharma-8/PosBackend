@@ -20,7 +20,7 @@ public class SupportController {
     @Autowired
     private JavaMailSender mailSender;
 
-    @Value("${spring.mail.username:pos111.noreply@gmail.com}")
+    @Value("${spring.mail.username}")
     private String fromEmail;
 
     @PostMapping("/ticket")
@@ -30,7 +30,7 @@ public class SupportController {
             MimeMessageHelper helper = new MimeMessageHelper(message, true);
 
             helper.setFrom(fromEmail);
-            helper.setTo("pos111.noreply@gmail.com");
+            helper.setTo(fromEmail);
             helper.setReplyTo(request.getEmail());
             helper.setSubject("App Support Request from " + request.getName());
             helper.setText("User: " + request.getName() + "\nEmail: " + request.getEmail() + "\n\nIssue Details:\n" + request.getQuery());
@@ -38,8 +38,6 @@ public class SupportController {
             if (request.getScreenshotBase64() != null && !request.getScreenshotBase64().trim().isEmpty()) {
                 String cleanBase64 = request.getScreenshotBase64().replaceAll("\\s+", "");
                 byte[] imageBytes = Base64.getDecoder().decode(cleanBase64);
-
-                // Fixed ByteArrayResource to ensure JavaMail Sender recognizes it as a valid file
                 ByteArrayResource resource = new ByteArrayResource(imageBytes) {
                     @Override
                     public String getFilename() {
@@ -51,12 +49,10 @@ public class SupportController {
 
             mailSender.send(message);
             return ResponseEntity.ok(Map.of("message", "Ticket submitted successfully"));
-
         } catch (Exception e) {
-            // This prints the error in your Railway Logs
+            System.err.println("Support ticket email sending failed: " + e.getMessage());
             e.printStackTrace();
-            // This sends the exact error back to your Android App
-            return ResponseEntity.status(500).body(Map.of("message", e.getMessage()));
+            return ResponseEntity.status(500).body(Map.of("message", "Failed to send email: " + e.getMessage()));
         }
     }
 }

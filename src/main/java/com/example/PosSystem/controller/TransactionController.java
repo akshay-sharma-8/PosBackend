@@ -17,7 +17,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/transactions")
+@RequestMapping({"/api/transactions", "/api/transaction"})
 @CrossOrigin(origins = "*")
 @RequiredArgsConstructor
 public class TransactionController {
@@ -25,7 +25,7 @@ public class TransactionController {
     private final TransactionRepository transactionRepository;
     private final ProductRepository productRepository;
 
-    @PostMapping({"", "/", "/save"})
+    @PostMapping({"", "/", "/save", "/saveTransaction"})
     @Transactional
     public ResponseEntity<?> saveTransaction(@RequestBody Transaction transaction) {
         if (transaction == null) {

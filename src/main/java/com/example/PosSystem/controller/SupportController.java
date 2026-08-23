@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.*;
 import jakarta.mail.internet.MimeMessage;
 import java.util.Base64;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 @RestController
 @RequestMapping("/api/support")
@@ -20,37 +21,39 @@ public class SupportController {
     @Autowired
     private JavaMailSender mailSender;
 
-    // Pull the email address from your application.properties
-    @Value("${spring.mail.username}")
+    @Value("${spring.mail.username:pos1111.noreply@gmail.com}")
     private String fromEmail;
 
     @PostMapping("/ticket")
     public ResponseEntity<?> receiveSupportTicket(@RequestBody SupportRequest request) {
-        try {
-            MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, true);
+        // Send email asynchronously in the background so Android doesn't time out
+        CompletableFuture.runAsync(() -> {
+            try {
+                MimeMessage message = mailSender.createMimeMessage();
+                MimeMessageHelper helper = new MimeMessageHelper(message, true);
 
-            // FIX 1: You MUST set the From address for Google SMTP to accept it
-            helper.setFrom(fromEmail);
-            helper.setTo(fromEmail); // Sends the email to yourself
-            helper.setReplyTo(request.getEmail()); // Allows you to hit "Reply" to answer the customer
-            helper.setSubject("App Support Request from " + request.getName());
-            helper.setText("User: " + request.getName() + "\nEmail: " + request.getEmail() + "\n\nIssue Details:\n" + request.getQuery());
+                helper.setFrom(fromEmail);
+                helper.setTo("pos1111.noreply@gmail.com");
+                helper.setReplyTo(request.getEmail());
+                helper.setSubject("App Support Request from " + request.getName());
+                helper.setText("User: " + request.getName() + "\nEmail: " + request.getEmail() + "\n\nIssue Details:\n" + request.getQuery());
 
-            // FIX 2: Clean the Base64 string of any invisible newline characters from Android
-            if (request.getScreenshotBase64() != null && !request.getScreenshotBase64().isEmpty()) {
-                String cleanBase64 = request.getScreenshotBase64().replaceAll("\\s+", "");
-                byte[] imageBytes = Base64.getDecoder().decode(cleanBase64);
-                ByteArrayResource resource = new ByteArrayResource(imageBytes);
-                helper.addAttachment("screenshot.png", resource);
+                if (request.getScreenshotBase64() != null && !request.getScreenshotBase64().trim().isEmpty()) {
+                    String cleanBase64 = request.getScreenshotBase64().replaceAll("\\s+", "");
+                    byte[] imageBytes = Base64.getDecoder().decode(cleanBase64);
+                    ByteArrayResource resource = new ByteArrayResource(imageBytes);
+                    helper.addAttachment("screenshot.jpg", resource);
+                }
+
+                mailSender.send(message);
+                System.out.println("Support email sent successfully to pos1111.noreply@gmail.com");
+            } catch (Exception e) {
+                System.err.println("Async email sending failed: " + e.getMessage());
+                e.printStackTrace();
             }
+        });
 
-            mailSender.send(message);
-            return ResponseEntity.ok().body(Map.of("message", "Sent successfully"));
-
-        } catch (Exception e) {
-            e.printStackTrace();
-            return ResponseEntity.internalServerError().body(Map.of("message", "Failed to send email: " + e.getMessage()));
-        }
+        // Immediately respond 200 OK to the Android app
+        return ResponseEntity.ok(Map.of("message", "Ticket submitted successfully"));
     }
 }

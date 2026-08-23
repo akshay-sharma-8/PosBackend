@@ -25,9 +25,13 @@ public class TransactionController {
     private final TransactionRepository transactionRepository;
     private final ProductRepository productRepository;
 
-    @PostMapping
+    @PostMapping({"", "/", "/save"})
     @Transactional
     public ResponseEntity<?> saveTransaction(@RequestBody Transaction transaction) {
+        if (transaction == null) {
+            return ResponseEntity.badRequest().body("Transaction details are required.");
+        }
+
         BigDecimal totalWholesale = BigDecimal.ZERO;
         boolean parsedAsJson = false;
 

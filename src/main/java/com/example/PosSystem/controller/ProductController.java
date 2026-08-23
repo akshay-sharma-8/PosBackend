@@ -20,8 +20,9 @@ public class ProductController {
         this.productRepository = productRepository;
     }
 
-    // GET all products for a user -> /api/products/user/{username}
-    @GetMapping("/user/{username}")
+    // GET all products for a user
+    // Android calls: GET /api/products/{username}  e.g. GET /api/products/akshay
+    @GetMapping("/{username}")
     public List<Product> getUserProducts(@PathVariable String username) {
         return productRepository.findByOwnerUsername(username);
     }
@@ -52,6 +53,8 @@ public class ProductController {
     }
 
     // DELETE a product by id -> DELETE /api/products/{id}
+    // This works fine alongside GET /{username} because Spring matches
+    // by BOTH the URL pattern AND the HTTP method (GET vs DELETE)
     @DeleteMapping("/{id}")
     @Transactional
     public ResponseEntity<?> deleteProduct(@PathVariable Long id) {

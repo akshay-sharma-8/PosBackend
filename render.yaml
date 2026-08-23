@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: possystem-backend
+    env: docker
+    plan: free # Change to starter/pro if you need a paid tier
+    healthCheckPath: / # Update this to your actual health check endpoint if it's different
+    envVars:
+      - key: PORT
+        value: 8080
+      - key: DB_URL
+        sync: false
+      - key: DB_USERNAME
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: MAIL_USERNAME
+        sync: false
+      - key: MAIL_PASSWORD
+        sync: false

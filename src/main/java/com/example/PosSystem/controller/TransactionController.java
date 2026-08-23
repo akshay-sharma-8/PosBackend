@@ -54,7 +54,9 @@ public class TransactionController {
                     if (found.isEmpty()) {
                         // try to find by lowercasing manually in Java just in case
                         List<Product> allProducts = productRepository.findByOwnerUsername(transaction.getOwnerUsername());
-                        found = allProducts.stream().filter(p -> p.getName().equalsIgnoreCase(name)).toList();
+                        found = allProducts.stream()
+                                .filter(p -> p.getName() != null && p.getName().equalsIgnoreCase(name))
+                                .toList();
                     }
 
                     if (found.isEmpty()) continue; 
@@ -92,32 +94,37 @@ public class TransactionController {
             int qty = transaction.getSoldQuantity() > 0 ? transaction.getSoldQuantity() : 1;
             
             if (!productName.isEmpty()) {
-                // Find exactly
-                List<Product> found = productRepository.findByNameAndOwnerUsername(productName, transaction.getOwnerUsername());
-                
-                // If not found exactly, try case-insensitive
-                if (found.isEmpty()) {
-                    List<Product> allProducts = productRepository.findByOwnerUsername(transaction.getOwnerUsername());
-                    found = allProducts.stream().filter(p -> p.getName().equalsIgnoreCase(productName)).toList();
-                }
-                
-                if (!found.isEmpty()) {
-                    Product product = found.get(0);
+                try {
+                    // Find exactly
+                    List<Product> found = productRepository.findByNameAndOwnerUsername(productName, transaction.getOwnerUsername());
                     
-                    if (product.getQuantity() < qty) {
-                        throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                            "Insufficient stock for: " + productName);
+                    // If not found exactly, try case-insensitive safely
+                    if (found.isEmpty()) {
+                        List<Product> allProducts = productRepository.findByOwnerUsername(transaction.getOwnerUsername());
+                        found = allProducts.stream()
+                                .filter(p -> p.getName() != null && p.getName().equalsIgnoreCase(productName))
+                                .toList();
                     }
                     
-                    // Deduct EXACT quantity
-                    product.setQuantity(product.getQuantity() - qty);
-                    productRepository.save(product);
-                    
-                    // Calculate total wholesale cost (Price * Quantity)
-                    BigDecimal wholesale = product.getWholesalePrice() != null
-                            ? product.getWholesalePrice()
-                            : BigDecimal.ZERO;
-                    totalWholesale = wholesale.multiply(new BigDecimal(qty));
+                    if (!found.isEmpty()) {
+                        Product product = found.get(0);
+                        
+                        if (product.getQuantity() < qty) {
+                            return ResponseEntity.badRequest().body("Insufficient stock for: " + productName);
+                        }
+                        
+                        // Deduct EXACT quantity
+                        product.setQuantity(product.getQuantity() - qty);
+                        productRepository.save(product);
+                        
+                        // Calculate total wholesale cost (Price * Quantity)
+                        BigDecimal wholesale = product.getWholesalePrice() != null
+                                ? product.getWholesalePrice()
+                                : BigDecimal.ZERO;
+                        totalWholesale = wholesale.multiply(new BigDecimal(qty));
+                    }
+                } catch (Exception e) {
+                    return ResponseEntity.badRequest().body("Error processing transaction: " + e.getMessage());
                 }
             }
         }

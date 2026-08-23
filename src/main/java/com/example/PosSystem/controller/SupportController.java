@@ -20,7 +20,7 @@ public class SupportController {
     @Autowired
     private JavaMailSender mailSender;
 
-    @Value("${spring.mail.username:pos1111.noreply@gmail.com}")
+    @Value("${spring.mail.username:pos111.noreply@gmail.com}")
     private String fromEmail;
 
     @PostMapping("/ticket")
@@ -30,7 +30,7 @@ public class SupportController {
             MimeMessageHelper helper = new MimeMessageHelper(message, true);
 
             helper.setFrom(fromEmail);
-            helper.setTo("pos1111.noreply@gmail.com");
+            helper.setTo("pos111.noreply@gmail.com");
             helper.setReplyTo(request.getEmail());
             helper.setSubject("App Support Request from " + request.getName());
             helper.setText("User: " + request.getName() + "\nEmail: " + request.getEmail() + "\n\nIssue Details:\n" + request.getQuery());

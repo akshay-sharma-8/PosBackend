@@ -2,7 +2,7 @@ package com.example.PosSystem.controller;
 
 import com.example.PosSystem.Model.User;
 import com.example.PosSystem.repository.UserRepository;
-import com.example.PosSystem.service.EmailService;
+import com.example.PosSystem.Service.EmailService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -20,7 +20,7 @@ import java.util.Random;
 public class UserController {
 
     private final UserRepository userRepository;
-    private final EmailService emailService; // Email Service is restored!
+    private final EmailService emailService;
 
     @PostMapping("/register")
     public ResponseEntity<Map<String, String>> registerUser(@RequestBody User user) {
@@ -84,15 +84,16 @@ public class UserController {
             user.setResetOtp(otp);
             userRepository.save(user);
 
-            // --- RAILWAY FIREWALL BYPASS ---
-            // Railway blocks Gmail, so we print the OTP to the console instead!
-            System.out.println("\n===============================================");
-            System.out.println("PASSWORD RESET REQUESTED FOR USER: " + username);
-            System.out.println("THE 6-DIGIT OTP IS: " + otp);
-            System.out.println("===============================================\n");
-
-            response.put("message", "OTP generated! Check Railway logs to see it.");
-            return ResponseEntity.ok(response);
+            // --- SEND REAL EMAIL VIA BREVO API ---
+            try {
+                emailService.sendOtpEmail(user.getEmail(), otp);
+                response.put("message", "OTP sent to your registered email.");
+                return ResponseEntity.ok(response);
+            } catch (Exception e) {
+                e.printStackTrace();
+                response.put("message", "Failed to send email. Ensure API key is correct.");
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+            }
 
         } else {
             response.put("message", "Username not found.");

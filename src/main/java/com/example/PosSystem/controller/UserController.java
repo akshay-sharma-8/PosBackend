@@ -20,7 +20,7 @@ import java.util.Random;
 public class UserController {
 
     private final UserRepository userRepository;
-    private final EmailService emailService;
+    private final EmailService emailService; // Email Service is restored!
 
     @PostMapping("/register")
     public ResponseEntity<Map<String, String>> registerUser(@RequestBody User user) {
@@ -79,20 +79,23 @@ public class UserController {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
             }
 
+            // Generate a random 6-digit OTP
             String otp = String.format("%06d", new Random().nextInt(999999));
             user.setResetOtp(otp);
             userRepository.save(user);
 
+            // --- SEND OTP TO THE USER'S EMAIL ---
             try {
+                // user.getEmail() ensures it goes to the user, not to you
                 emailService.sendOtpEmail(user.getEmail(), otp);
                 response.put("message", "OTP sent to your registered email.");
                 return ResponseEntity.ok(response);
             } catch (Exception e) {
-                System.err.println("OTP Email sending failed: " + e.getMessage());
                 e.printStackTrace();
-                response.put("message", "Failed to send email: " + e.getMessage());
+                response.put("message", "Failed to send email. Check Railway logs.");
                 return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
             }
+
         } else {
             response.put("message", "Username not found.");
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
@@ -111,7 +114,7 @@ public class UserController {
             User user = userOptional.get();
             if (user.getResetOtp() != null && user.getResetOtp().equals(otp)) {
                 user.setPassword(newPassword);
-                user.setResetOtp(null);
+                user.setResetOtp(null); // Clear OTP after use
                 userRepository.save(user);
                 response.put("message", "Password successfully updated.");
                 return ResponseEntity.ok(response);

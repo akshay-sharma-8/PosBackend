@@ -11,8 +11,8 @@
 	<groupId>com.example</groupId>
 	<artifactId>PosSystem</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name/>
-	<description/>
+	<name>PosSystem</name>
+	<description>POS system backend</description>
 	<url/>
 	<licenses>
 		<license/>
@@ -76,6 +76,7 @@
 	</dependencies>
 
 	<build>
+		<finalName>app</finalName>
 		<plugins>
 			<plugin>
 				<groupId>org.springframework.boot</groupId>

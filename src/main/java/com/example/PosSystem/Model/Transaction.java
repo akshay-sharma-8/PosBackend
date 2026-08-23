@@ -19,6 +19,7 @@ public class Transaction {
     // NEW: Links this transaction record exclusively to the user
     private String ownerUsername;
 
+    @com.fasterxml.jackson.annotation.JsonFormat(shape = com.fasterxml.jackson.annotation.JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd")
     private LocalDate date;
     private String products;
     private String discountApplied;
@@ -27,6 +28,7 @@ public class Transaction {
     @Column(precision = 10, scale = 2)
     private BigDecimal finalAmount;
 
+    @com.fasterxml.jackson.annotation.JsonFormat(shape = com.fasterxml.jackson.annotation.JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss")
     @Column(name = "transaction_timestamp")
     private LocalDateTime transactionTimestamp;
 

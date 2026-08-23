@@ -6,6 +6,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -26,11 +28,11 @@ public class TransactionController {
         BigDecimal totalWholesale = BigDecimal.ZERO;
 
         try {
-            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-            com.fasterxml.jackson.databind.JsonNode cartItems = mapper.readTree(transaction.getProducts());
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode cartItems = mapper.readTree(transaction.getProducts());
             
             if (cartItems.isArray()) {
-                for (com.fasterxml.jackson.databind.JsonNode item : cartItems) {
+                for (JsonNode item : cartItems) {
                     String name = item.has("name") ? item.get("name").asText() : "";
                     int quantity = item.has("quantity") ? item.get("quantity").asInt() : 1;
 

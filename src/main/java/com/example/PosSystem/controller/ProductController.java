@@ -2,10 +2,12 @@ package com.example.PosSystem.controller;
 
 import com.example.PosSystem.Model.Product;
 import com.example.PosSystem.repository.ProductRepository;
-import jakarta.transaction.Transactional;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/products")
@@ -18,20 +20,44 @@ public class ProductController {
         this.productRepository = productRepository;
     }
 
-    // THIS IS THE MISSING ENDPOINT: It handles /api/products/ram
-    @GetMapping("/{username}")
+    // GET all products for a user -> /api/products/user/{username}
+    @GetMapping("/user/{username}")
     public List<Product> getUserProducts(@PathVariable String username) {
         return productRepository.findByOwnerUsername(username);
     }
 
+    // CREATE a new product -> POST /api/products
     @PostMapping
-    public Product createProduct(@RequestBody Product product) {
-        return productRepository.save(product);
+    public ResponseEntity<Product> createProduct(@RequestBody Product product) {
+        Product saved = productRepository.save(product);
+        return ResponseEntity.status(HttpStatus.CREATED).body(saved);
     }
 
+    // UPDATE an existing product -> PUT /api/products/{id}
+    @PutMapping("/{id}")
+    public ResponseEntity<?> updateProduct(@PathVariable Long id, @RequestBody Product updatedProduct) {
+        Optional<Product> existing = productRepository.findById(id);
+        if (existing.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Product not found.");
+        }
+        Product product = existing.get();
+        product.setName(updatedProduct.getName());
+        product.setPrice(updatedProduct.getPrice());
+        product.setWholesalePrice(updatedProduct.getWholesalePrice());
+        product.setQuantity(updatedProduct.getQuantity());
+        if (updatedProduct.getImageUrls() != null) {
+            product.setImageUrls(updatedProduct.getImageUrls());
+        }
+        return ResponseEntity.ok(productRepository.save(product));
+    }
+
+    // DELETE a product by id -> DELETE /api/products/{id}
     @DeleteMapping("/{id}")
     @Transactional
-    public ResponseEntity<Void> deleteProduct(@PathVariable Long id) {
+    public ResponseEntity<?> deleteProduct(@PathVariable Long id) {
+        if (!productRepository.existsById(id)) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Product not found.");
+        }
         productRepository.deleteById(id);
         return ResponseEntity.ok().build();
     }

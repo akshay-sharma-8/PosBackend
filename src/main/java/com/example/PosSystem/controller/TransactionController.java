@@ -2,12 +2,12 @@ package com.example.PosSystem.controller;
 
 import com.example.PosSystem.Model.*;
 import com.example.PosSystem.repository.*;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.JsonNode;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -26,47 +26,70 @@ public class TransactionController {
     @Transactional
     public ResponseEntity<?> saveTransaction(@RequestBody Transaction transaction) {
         BigDecimal totalWholesale = BigDecimal.ZERO;
+        boolean parsedAsJson = false;
 
+        // Try to parse products as JSON array first
+        // e.g. [{"name":"Apple","quantity":2},{"name":"Milk","quantity":1}]
         try {
             ObjectMapper mapper = new ObjectMapper();
             JsonNode cartItems = mapper.readTree(transaction.getProducts());
-            
-            if (cartItems.isArray()) {
+
+            if (cartItems != null && cartItems.isArray()) {
+                parsedAsJson = true;
+
                 for (JsonNode item : cartItems) {
-                    String name = item.has("name") ? item.get("name").asText() : "";
+                    String name = item.has("name") ? item.get("name").asText().trim() : "";
                     int quantity = item.has("quantity") ? item.get("quantity").asInt() : 1;
 
-                    List<Product> products = productRepository.findByNameAndOwnerUsername(name, transaction.getOwnerUsername());
-                    if (!products.isEmpty()) {
-                        Product product = products.get(0);
-                        
-                        // Add to wholesale cost (wholesalePrice * quantity)
-                        BigDecimal itemWholesale = product.getWholesalePrice() != null ? product.getWholesalePrice() : BigDecimal.ZERO;
-                        totalWholesale = totalWholesale.add(itemWholesale.multiply(new BigDecimal(quantity)));
-                        
-                        // Reduce stock by the exact quantity sold
-                        if (product.getQuantity() >= quantity) {
-                            product.setQuantity(product.getQuantity() - quantity);
-                            productRepository.save(product);
-                        } else {
-                            return ResponseEntity.badRequest().body("Insufficient inventory for: " + name);
-                        }
+                    if (name.isEmpty() || quantity <= 0) continue;
+
+                    List<Product> found = productRepository.findByNameAndOwnerUsername(name, transaction.getOwnerUsername());
+                    if (found.isEmpty()) {
+                        // Product not in catalog — skip but don't crash
+                        continue;
                     }
+
+                    Product product = found.get(0);
+
+                    // Check stock
+                    if (product.getQuantity() < quantity) {
+                        return ResponseEntity.badRequest()
+                                .body("Insufficient stock for: " + name
+                                        + " (available: " + product.getQuantity()
+                                        + ", requested: " + quantity + ")");
+                    }
+
+                    // Deduct stock
+                    product.setQuantity(product.getQuantity() - quantity);
+                    productRepository.save(product);
+
+                    // Accumulate wholesale cost
+                    BigDecimal wholesale = product.getWholesalePrice() != null
+                            ? product.getWholesalePrice()
+                            : BigDecimal.ZERO;
+                    totalWholesale = totalWholesale.add(wholesale.multiply(new BigDecimal(quantity)));
                 }
-            } else {
-                throw new RuntimeException("Products field is not a JSON array");
             }
-        } catch (Exception e) {
-            // FALLBACK: If the Android app just sends a simple string like "Apple"
-            List<Product> products = productRepository.findByNameAndOwnerUsername(transaction.getProducts(), transaction.getOwnerUsername());
-            if (!products.isEmpty()) {
-                Product product = products.get(0);
-                totalWholesale = product.getWholesalePrice() != null ? product.getWholesalePrice() : BigDecimal.ZERO;
-                if (product.getQuantity() > 0) {
+        } catch (Exception ignored) {
+            // products field is not JSON — will fall through to plain string logic below
+        }
+
+        // FALLBACK: plain string product name (e.g. "Apple")
+        if (!parsedAsJson) {
+            String productName = transaction.getProducts() != null ? transaction.getProducts().trim() : "";
+            if (!productName.isEmpty()) {
+                List<Product> found = productRepository.findByNameAndOwnerUsername(productName, transaction.getOwnerUsername());
+                if (!found.isEmpty()) {
+                    Product product = found.get(0);
+                    if (product.getQuantity() < 1) {
+                        return ResponseEntity.badRequest()
+                                .body("Insufficient stock for: " + productName);
+                    }
                     product.setQuantity(product.getQuantity() - 1);
                     productRepository.save(product);
-                } else {
-                    return ResponseEntity.badRequest().body("Insufficient inventory for: " + transaction.getProducts());
+                    totalWholesale = product.getWholesalePrice() != null
+                            ? product.getWholesalePrice()
+                            : BigDecimal.ZERO;
                 }
             }
         }
@@ -77,12 +100,13 @@ public class TransactionController {
         return ResponseEntity.ok(transactionRepository.save(transaction));
     }
 
-    // THE MISSING ENDPOINTS: These handle the new /user/ram URLs
+    // GET all transactions for a user
     @GetMapping("/user/{username}")
     public List<Transaction> getUserTransactions(@PathVariable String username) {
         return transactionRepository.findByOwnerUsername(username);
     }
 
+    // DELETE single transaction by id
     @DeleteMapping("/{id}")
     @Transactional
     public ResponseEntity<Void> deleteTransaction(@PathVariable Long id) {
@@ -90,6 +114,7 @@ public class TransactionController {
         return ResponseEntity.ok().build();
     }
 
+    // DELETE all transactions for a user
     @DeleteMapping("/user/{username}")
     @Transactional
     public ResponseEntity<Void> deleteAllUserTransactions(@PathVariable String username) {
@@ -97,6 +122,7 @@ public class TransactionController {
         return ResponseEntity.ok().build();
     }
 
+    // PROFIT endpoints
     @GetMapping("/profit/day/{username}")
     public Double getDailyProfit(@PathVariable String username) {
         Double profit = transactionRepository.calculateProfitSince(LocalDate.now().atStartOfDay(), username);

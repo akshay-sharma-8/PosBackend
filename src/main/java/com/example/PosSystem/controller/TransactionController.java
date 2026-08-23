@@ -23,18 +23,53 @@ public class TransactionController {
     @PostMapping
     @Transactional
     public ResponseEntity<?> saveTransaction(@RequestBody Transaction transaction) {
-        List<Product> products = productRepository.findByNameAndOwnerUsername(transaction.getProducts(), transaction.getOwnerUsername());
+        BigDecimal totalWholesale = BigDecimal.ZERO;
 
-        if (!products.isEmpty()) {
-            Product product = products.get(0);
-            transaction.setTotalWholesaleCost(product.getWholesalePrice() != null ? product.getWholesalePrice() : BigDecimal.ZERO);
-            if (product.getQuantity() > 0) {
-                product.setQuantity(product.getQuantity() - 1);
-                productRepository.save(product);
-            } else return ResponseEntity.badRequest().body("Insufficient inventory.");
-        } else {
-            transaction.setTotalWholesaleCost(BigDecimal.ZERO);
+        try {
+            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            com.fasterxml.jackson.databind.JsonNode cartItems = mapper.readTree(transaction.getProducts());
+            
+            if (cartItems.isArray()) {
+                for (com.fasterxml.jackson.databind.JsonNode item : cartItems) {
+                    String name = item.has("name") ? item.get("name").asText() : "";
+                    int quantity = item.has("quantity") ? item.get("quantity").asInt() : 1;
+
+                    List<Product> products = productRepository.findByNameAndOwnerUsername(name, transaction.getOwnerUsername());
+                    if (!products.isEmpty()) {
+                        Product product = products.get(0);
+                        
+                        // Add to wholesale cost (wholesalePrice * quantity)
+                        BigDecimal itemWholesale = product.getWholesalePrice() != null ? product.getWholesalePrice() : BigDecimal.ZERO;
+                        totalWholesale = totalWholesale.add(itemWholesale.multiply(new BigDecimal(quantity)));
+                        
+                        // Reduce stock by the exact quantity sold
+                        if (product.getQuantity() >= quantity) {
+                            product.setQuantity(product.getQuantity() - quantity);
+                            productRepository.save(product);
+                        } else {
+                            return ResponseEntity.badRequest().body("Insufficient inventory for: " + name);
+                        }
+                    }
+                }
+            } else {
+                throw new RuntimeException("Products field is not a JSON array");
+            }
+        } catch (Exception e) {
+            // FALLBACK: If the Android app just sends a simple string like "Apple"
+            List<Product> products = productRepository.findByNameAndOwnerUsername(transaction.getProducts(), transaction.getOwnerUsername());
+            if (!products.isEmpty()) {
+                Product product = products.get(0);
+                totalWholesale = product.getWholesalePrice() != null ? product.getWholesalePrice() : BigDecimal.ZERO;
+                if (product.getQuantity() > 0) {
+                    product.setQuantity(product.getQuantity() - 1);
+                    productRepository.save(product);
+                } else {
+                    return ResponseEntity.badRequest().body("Insufficient inventory for: " + transaction.getProducts());
+                }
+            }
         }
+
+        transaction.setTotalWholesaleCost(totalWholesale);
         transaction.setTransactionTimestamp(LocalDateTime.now());
         transaction.setDate(LocalDate.now());
         return ResponseEntity.ok(transactionRepository.save(transaction));

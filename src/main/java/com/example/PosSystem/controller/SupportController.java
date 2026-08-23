@@ -11,7 +11,6 @@ import org.springframework.web.bind.annotation.*;
 import jakarta.mail.internet.MimeMessage;
 import java.util.Base64;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 
 @RestController
 @RequestMapping("/api/support")
@@ -26,34 +25,38 @@ public class SupportController {
 
     @PostMapping("/ticket")
     public ResponseEntity<?> receiveSupportTicket(@RequestBody SupportRequest request) {
-        // Send email asynchronously in the background so Android doesn't time out
-        CompletableFuture.runAsync(() -> {
-            try {
-                MimeMessage message = mailSender.createMimeMessage();
-                MimeMessageHelper helper = new MimeMessageHelper(message, true);
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true);
 
-                helper.setFrom(fromEmail);
-                helper.setTo("pos1111.noreply@gmail.com");
-                helper.setReplyTo(request.getEmail());
-                helper.setSubject("App Support Request from " + request.getName());
-                helper.setText("User: " + request.getName() + "\nEmail: " + request.getEmail() + "\n\nIssue Details:\n" + request.getQuery());
+            helper.setFrom(fromEmail);
+            helper.setTo("pos1111.noreply@gmail.com");
+            helper.setReplyTo(request.getEmail());
+            helper.setSubject("App Support Request from " + request.getName());
+            helper.setText("User: " + request.getName() + "\nEmail: " + request.getEmail() + "\n\nIssue Details:\n" + request.getQuery());
 
-                if (request.getScreenshotBase64() != null && !request.getScreenshotBase64().trim().isEmpty()) {
-                    String cleanBase64 = request.getScreenshotBase64().replaceAll("\\s+", "");
-                    byte[] imageBytes = Base64.getDecoder().decode(cleanBase64);
-                    ByteArrayResource resource = new ByteArrayResource(imageBytes);
-                    helper.addAttachment("screenshot.jpg", resource);
-                }
+            if (request.getScreenshotBase64() != null && !request.getScreenshotBase64().trim().isEmpty()) {
+                String cleanBase64 = request.getScreenshotBase64().replaceAll("\\s+", "");
+                byte[] imageBytes = Base64.getDecoder().decode(cleanBase64);
 
-                mailSender.send(message);
-                System.out.println("Support email sent successfully to pos1111.noreply@gmail.com");
-            } catch (Exception e) {
-                System.err.println("Async email sending failed: " + e.getMessage());
-                e.printStackTrace();
+                // Fixed ByteArrayResource to ensure JavaMail Sender recognizes it as a valid file
+                ByteArrayResource resource = new ByteArrayResource(imageBytes) {
+                    @Override
+                    public String getFilename() {
+                        return "screenshot.jpg";
+                    }
+                };
+                helper.addAttachment(resource.getFilename(), resource);
             }
-        });
 
-        // Immediately respond 200 OK to the Android app
-        return ResponseEntity.ok(Map.of("message", "Ticket submitted successfully"));
+            mailSender.send(message);
+            return ResponseEntity.ok(Map.of("message", "Ticket submitted successfully"));
+
+        } catch (Exception e) {
+            // This prints the error in your Railway Logs
+            e.printStackTrace();
+            // This sends the exact error back to your Android App
+            return ResponseEntity.status(500).body(Map.of("message", e.getMessage()));
+        }
     }
 }

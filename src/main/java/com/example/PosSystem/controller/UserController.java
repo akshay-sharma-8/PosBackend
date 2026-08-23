@@ -84,17 +84,15 @@ public class UserController {
             user.setResetOtp(otp);
             userRepository.save(user);
 
-            // --- SEND OTP TO THE USER'S EMAIL ---
-            try {
-                // user.getEmail() ensures it goes to the user, not to you
-                emailService.sendOtpEmail(user.getEmail(), otp);
-                response.put("message", "OTP sent to your registered email.");
-                return ResponseEntity.ok(response);
-            } catch (Exception e) {
-                e.printStackTrace();
-                response.put("message", "Failed to send email. Check Railway logs.");
-                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
-            }
+            // --- RAILWAY FIREWALL BYPASS ---
+            // Railway blocks Gmail, so we print the OTP to the console instead!
+            System.out.println("\n===============================================");
+            System.out.println("PASSWORD RESET REQUESTED FOR USER: " + username);
+            System.out.println("THE 6-DIGIT OTP IS: " + otp);
+            System.out.println("===============================================\n");
+
+            response.put("message", "OTP generated! Check Railway logs to see it.");
+            return ResponseEntity.ok(response);
 
         } else {
             response.put("message", "Username not found.");

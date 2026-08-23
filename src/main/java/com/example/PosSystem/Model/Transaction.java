@@ -34,6 +34,9 @@ public class Transaction {
     private String customerPhone;
     private String transactionReference;
 
+    // The quantity Android sends
+    private int soldQuantity;
+
     @Column(precision = 10, scale = 2)
     private BigDecimal totalWholesaleCost;
 }

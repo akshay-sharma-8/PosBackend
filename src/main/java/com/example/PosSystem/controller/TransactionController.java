@@ -35,13 +35,12 @@ public class TransactionController {
         BigDecimal totalWholesale = BigDecimal.ZERO;
         boolean parsedAsJson = false;
 
-        // Try to parse products as JSON array first
-        // e.g. [{"name":"Apple","quantity":2},{"name":"Milk","quantity":1}]
+        // Try to parse products as JSON array first (if you ever use a cart system)
         try {
             ObjectMapper mapper = new ObjectMapper();
             JsonNode cartItems = mapper.readTree(transaction.getProducts());
 
-            if (cartItems != null && cartItems.isArray()) {
+            if (cartItems != null && cartItems.isArray() && cartItems.size() > 0) {
                 parsedAsJson = true;
 
                 for (JsonNode item : cartItems) {
@@ -50,11 +49,15 @@ public class TransactionController {
 
                     if (name.isEmpty() || quantity <= 0) continue;
 
+                    // Support case-insensitive name match if exact match fails
                     List<Product> found = productRepository.findByNameAndOwnerUsername(name, transaction.getOwnerUsername());
                     if (found.isEmpty()) {
-                        // Product not in catalog — skip but don't crash
-                        continue;
+                        // try to find by lowercasing manually in Java just in case
+                        List<Product> allProducts = productRepository.findByOwnerUsername(transaction.getOwnerUsername());
+                        found = allProducts.stream().filter(p -> p.getName().equalsIgnoreCase(name)).toList();
                     }
+
+                    if (found.isEmpty()) continue; 
 
                     Product product = found.get(0);
 
@@ -81,22 +84,40 @@ public class TransactionController {
             // products field is not JSON — will fall through to plain string logic below
         }
 
-        // FALLBACK: plain string product name (e.g. "Apple")
+        // FALLBACK: plain string product name (Current Android App Behavior)
         if (!parsedAsJson) {
             String productName = transaction.getProducts() != null ? transaction.getProducts().trim() : "";
+            
+            // Get quantity from Android app, default to 1 if not provided
+            int qty = transaction.getSoldQuantity() > 0 ? transaction.getSoldQuantity() : 1;
+            
             if (!productName.isEmpty()) {
+                // Find exactly
                 List<Product> found = productRepository.findByNameAndOwnerUsername(productName, transaction.getOwnerUsername());
+                
+                // If not found exactly, try case-insensitive
+                if (found.isEmpty()) {
+                    List<Product> allProducts = productRepository.findByOwnerUsername(transaction.getOwnerUsername());
+                    found = allProducts.stream().filter(p -> p.getName().equalsIgnoreCase(productName)).toList();
+                }
+                
                 if (!found.isEmpty()) {
                     Product product = found.get(0);
-                    if (product.getQuantity() < 1) {
+                    
+                    if (product.getQuantity() < qty) {
                         throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                             "Insufficient stock for: " + productName);
                     }
-                    product.setQuantity(product.getQuantity() - 1);
+                    
+                    // Deduct EXACT quantity
+                    product.setQuantity(product.getQuantity() - qty);
                     productRepository.save(product);
-                    totalWholesale = product.getWholesalePrice() != null
+                    
+                    // Calculate total wholesale cost (Price * Quantity)
+                    BigDecimal wholesale = product.getWholesalePrice() != null
                             ? product.getWholesalePrice()
                             : BigDecimal.ZERO;
+                    totalWholesale = wholesale.multiply(new BigDecimal(qty));
                 }
             }
         }
